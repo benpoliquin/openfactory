@@ -1,0 +1,9 @@
+# Opt-in for trusted checks that download dependencies. This is NOT the BB API
+# network. Egress also permits reaching externally published host services;
+# do not enable for hostile code or expose BB on a non-loopback address.
+services:
+  checks:
+    networks: !override [check-egress]
+networks:
+  check-egress:
+    driver: bridge

@@ -1,0 +1,36 @@
+# Allowlist only the inputs required by the Dockerfile. Operator config,
+# feature data, state, repositories and credentials never enter build context.
+**
+!Dockerfile
+!go.mod
+!go.sum
+!cmd/
+!cmd/**
+!internal/
+!internal/**
+!deploy/
+!deploy/bb-entrypoint.sh
+!deploy/omp.sh
+!deploy/bb-start.mjs
+!deploy/research-extension.ts
+!deploy/research-config.yaml
+!deploy/intake-extension.ts
+!deploy/intake-config.yaml
+!plugins/
+!plugins/openfactory/
+!plugins/openfactory/package.json
+!plugins/openfactory/package-lock.json
+!plugins/openfactory/*.ts
+!plugins/openfactory/*.tsx
+!plugins/openfactory/*.css
+# Defense in depth for accidentally nested local artifacts.
+**/.env
+**/.env.*
+**/.git
+**/node_modules
+**/*.key
+**/*.pem
+**/*.sqlite
+**/*.sqlite-*
+**/*.db
+**/*.db-*

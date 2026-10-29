@@ -1,0 +1,84 @@
+# Empty by default: startup never enrolls a repository or spends model quota.
+state_dir: /state
+workspace_dir: /workspaces
+check_socket: /run/openfactory-checks/check.sock
+release_dir: /config/releases
+bb_url: http://bb:38886
+# Empty preserves URL Host. Private phone Docker setup can explicitly set
+# localhost:38886 here or via OPENFACTORY_BB_HOST_AUTHORITY; DNS/TLS stay on bb_url.
+bb_host_authority: ${OPENFACTORY_BB_HOST_AUTHORITY}
+astra_model: ${OPENFACTORY_ASTRA_MODEL}
+fast_model: ${OPENFACTORY_FAST_MODEL}
+poll_seconds: 10
+max_concurrent: 2
+max_attempts: 3
+max_calls_per_day: 30
+attempt_timeout_seconds: 1800
+max_prompt_bytes: 24000
+git_name: OpenFactory
+git_email: openfactory@localhost
+projects: {}
+
+# Opt-in phone workflow. Disabled keeps trusted CLI-only operation and never
+# opens the BB/intake frontdoor. No origin/RP/project or approval is invented.
+# Review examples/intake-private-https.txt BEFORE enabling/recreating services.
+intake:
+  enabled: false
+  # external_origin: https://openfactory.example-tailnet.ts.net
+  # rp_id: openfactory.example-tailnet.ts.net
+  public_path: /openfactory-intake
+  bind: 127.0.0.1:38889
+  allow_non_loopback: false # Compose passes its explicit private-container flag.
+  max_turn_bytes: 16384
+  max_turns: 256
+  max_text_bytes: 2097152
+  max_canonical_bytes: 262144
+  max_output_bytes: 262144
+  max_draft_calls: 12 # Lifetime reservations; retries/refinements do not reset.
+  history_default: 50
+  history_max: 200
+  pairing_ttl_seconds: 600
+  challenge_ttl_seconds: 120
+  session_idle_seconds: 43200
+  session_absolute_seconds: 604800
+  credential_ttl_seconds: 7776000
+  max_credentials: 10
+  auth_rate_limit: 30
+
+# Add a trusted project, then restart the controller and approve exact feature revisions.
+# projects:
+#   myapp:
+#     repository: https://github.com/YOUR-ORG/YOUR-REPO.git
+#     branch: main
+#     max_concurrent: 1 # Independent build/check/review lanes; 1..32, omitted means 1.
+#     trusted: true
+#     auth:
+#       mode: token
+#       token_file: /run/secrets/github_token
+#     github_repository: YOUR-ORG/YOUR-REPO
+#     checks:
+#       unit:
+#         argv: [go, test, ./...]
+#         timeout_seconds: 300
+#       smoke:
+#         argv: [sh, scripts/smoke.sh]
+#         timeout_seconds: 120
+#     protected_paths: [deploy/, migrations/]
+#     releases:
+#       production:
+#         allowed: true
+#         qualified: true # Only after independently qualifying this actual release path.
+#         expires_at: "2027-01-01T00:00:00Z"
+#         allowed_risks: [normal]
+#         allowed_paths: [src/, README.md]
+#         deploy:
+#           argv: [/config/releases/deploy-approved]
+#           timeout_seconds: 300
+#         observe:
+#           argv: [/config/releases/check-release]
+#           timeout_seconds: 30
+#         rollback:
+#           argv: [/config/releases/rollback-approved]
+#           timeout_seconds: 300
+#         observation_seconds: 60
+#         minimum_observations: 3

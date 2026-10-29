@@ -1,0 +1,26 @@
+{
+  "id": "event-ordering-discovery",
+  "project": "discovery-fixture",
+  "title": "Evaluate duplicate, reordered, and stale event handling",
+  "objective": "Produce evidence-backed requirements, architecture alternatives, real local experiment contracts, and unapproved implementation proposals for an event consumer. Do not claim knowledge of private vendor internals. Evaluate the arrival-order hypothesis first; revise it if actual observations falsify it.",
+  "scope": ["Public architectural research with captured quote provenance", "Deterministic duplicate and reorder experiments using the declared local Python bundle", "Stale-writer fencing experiment", "Independent evaluation before product proposals"],
+  "non_goals": ["Production deployment", "Accounts, credentials, GPU access or paid services", "Automatic product feature approval"],
+  "constraints": ["Ask the operator whether acknowledgement requires durable storage before accepting the durability requirement", "Use only explicitly enrolled experiment profiles and frozen bundles", "Use experiment contract ID event-ordering with bundle_files [experiments/event-ordering/experiment.py], copied byte-for-byte from the reviewed experiment.py seed, and profile event-ordering-python; select exactly one argument arrival or versioned for each separately approved frozen contract", "Use separate experiment contract ID stale-writer with bundle_files [experiments/stale-writer/experiment.py], copied byte-for-byte from the same seed, profile stale-writer-python, and exactly one argument fenced", "Require exact architecture and each experiment approval before execution", "Use independent fresh evaluation sessions", "Do not represent missing infrastructure or incomplete output as falsification"],
+  "seeds": [
+    {"id": "adr", "kind": "public_url", "url": "https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions"},
+    {"id": "chaos", "kind": "public_url", "url": "https://principlesofchaos.org/"},
+    {"id": "ssrf", "kind": "public_url", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html"},
+    {"id": "experiment-source", "kind": "bundle", "path": "experiment.py"}
+  ],
+  "disclosure": {
+    "model_provider_ids": ["openai-codex"],
+    "public_search_allowed": true,
+    "public_search_topics": [
+      {"id": "event-ordering", "query": "public event consumer duplicate reordered events version fencing stale writer architecture"},
+      {"id": "omp-search", "query": "github omp parallel web_search tools source"}
+    ],
+    "private_material_to_models": true
+  },
+  "limits": {"max_iterations": 2, "max_model_calls": 20, "max_steps": 32, "max_experiments": 8, "max_searches": 8, "max_sources": 20, "max_total_capture_bytes": 33554432},
+  "implementation": {"permitted_feature_kinds": ["feature"], "permitted_completion_targets": ["integrated"]}
+}

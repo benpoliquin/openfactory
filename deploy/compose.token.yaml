@@ -1,0 +1,15 @@
+# Enable only after creating a nonempty dedicated fine-grained GitHub token
+# file; grant only the enrolled repositories and required operations.
+# Project config: auth.mode=token, auth.token_file=/run/secrets/github_token.
+# .env: COMPOSE_FILE=compose.yaml:deploy/compose.token.yaml
+# Multiple enrolled repos may use this same token. Additional identities can
+# be mounted at other controller-only paths and selected per project config.
+services:
+  openfactory:
+    volumes:
+      - type: bind
+        source: ${GITHUB_TOKEN_FILE:?Set GITHUB_TOKEN_FILE to an existing dedicated token file}
+        target: /run/secrets/github_token
+        read_only: true
+        bind:
+          create_host_path: false

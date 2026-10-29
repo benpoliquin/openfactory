@@ -1,0 +1,10 @@
+# Per-launch overlay only; never modifies the persistent provider/auth profile.
+# Custom tools plus the extension's exact tool_call allowlist disable task,
+# eval, shell, native search, and ambient MCP tool invocation for discovery.
+# OMP 18.10.3 has no global MCP-discovery-off setting; do not claim otherwise.
+advisor:
+  enabled: false
+retry:
+  fallbackChains:
+    default: []
+    web: []

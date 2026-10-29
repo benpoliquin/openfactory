@@ -1,0 +1,211 @@
+OPENFACTORY INTAKE: PRIVATE SAME-ORIGIN DEPLOYMENT RECIPE (NOT AUTOMATIC)
+
+Do not run deployment commands against an operator stack until its owner has
+scheduled the migration. The starter never executes this recipe. No Funnel,
+public ingress, provider login, bridge key, BB database mount, controller-secret
+mount, or host credential copying is required or authorized by this example.
+Pinned versions remain BB 0.47.1, plugin SDK 0.6.79, OMP 18.10.3.
+
+1. Prepare the stopped stack and backup
+
+Back up the SQLite database with openfactory backup, the complete /state/artifacts
+CAS volume, and operator configuration together. Preserve BB/provider state by
+its existing procedure; do not copy it into the controller. The schema upgrade
+is forward-only: an older binary must not open the new schema. Restoring any
+backup requires trusted CLI `operator restore-auth` below BEFORE exposure,
+then external attempt/experiment ownership reconciliation before resuming.
+Approved historical work is not revoked by device/session revocation.
+
+Choose the actual stable private HTTPS hostname, for example:
+  https://openfactory.example-tailnet.ts.net
+Set intake.external_origin to that EXACT origin, without a trailing slash,
+path, query, credentials, or fragment; set intake.rp_id to the EXACT hostname
+without scheme or port. Arbitrary parent-domain RP IDs are deliberately denied.
+Use the browser-serialized spelling: lowercase scheme and hostname, no explicit
+default :443 for HTTPS or :80 for HTTP, and no zero-padded port numbers.
+Use the same hostname in the BB origin configuration. Changing RP ID breaks
+existing passkey associations; plan re-enrollment rather than auth fallback.
+
+In reviewed operator YAML (the example is disabled until explicitly enabled):
+  intake:
+    enabled: true
+    external_origin: https://openfactory.example-tailnet.ts.net
+    rp_id: openfactory.example-tailnet.ts.net
+    public_path: /openfactory-intake
+
+`openfactory --config FILE config intake` displays effective non-secret policy and
+policy hash without opening SQLite. Every intake limit is policy-hashed; reload
+fails closed when policy changes. The existing coordinated controller/checker
+recreate procedure still applies: checks bind the policy FILE and atomic host
+replacement does not replace an existing bind-mounted inode. Recreate both
+controller and checker together. Do not loosen release/check policy for intake.
+
+Compose publishes ONLY host loopback ports 38886 (direct BB), 38887 (readonly
+view), 38889 (private BB/intake frontdoor). Private browser access MUST use the
+frontdoor, never bypass it to BB: it confines worker-controlled attachments.
+Its explicit bind is 0.0.0.0 INSIDE Docker, requiring
+--command-allow-non-loopback. No frontdoor socket opens when intake.enabled is
+false. Native default is 127.0.0.1:38889; only literal IP:port1..65535 is valid.
+
+2. Configure the actual pinned BB origin (non-secret, explicit opt-in)
+
+Option A: add this to the operator dotenv before the reviewed recreation:
+  OPENFACTORY_BB_APP_URL=https://openfactory.example-tailnet.ts.net
+  OPENFACTORY_BB_HOST_AUTHORITY=localhost:38886
+Compose passes only BB_APP_URL to BB, not auth or provider credentials.
+
+Option B: use pinned BB's documented persistent config command on the intended
+BB data directory (this modifies BB config; run only as an authorized operator):
+  ./start.sh bb bb-app config set BB_APP_URL https://openfactory.example-tailnet.ts.net
+  ./start.sh bb bb-app config list
+
+Persistent BB config has PRECEDENCE over ambient environment. An old persisted
+BB_APP_URL must be explicitly reviewed/updated; merely changing dotenv cannot
+override it. BB_SERVER_URL remains the internal CLI/host transport, not the
+browser-origin allowlist. Do not invent extra BB allow-origin flags or trust
+forwarded headers to authorize an unconfigured hostname.
+The controller still CONNECTS to bb_url (Docker default http://bb:38886).
+With a public BB_APP_URL, pinned BB may reject Docker's `Host: bb:38886`.
+Explicit OPENFACTORY_BB_HOST_AUTHORITY=localhost:38886 changes ONLY its HTTP Host
+to an authority accepted by that local BB instance. The equivalent reviewed
+YAML is `bb_host_authority: localhost:38886`. This field is policy-hashed and
+does not change URL, path/query, connection DNS, TLS SNI, certificate identity,
+redirect rejection, or uncertain mutation reconciliation. There is no static
+Docker IP and no automatic hostname special case.
+
+Empty override preserves the normal BB URL authority, which is important for
+remote HTTPS virtual hosts. Never set localhost automatically for remote BB.
+Only explicitly configure a Host authority supported by the intended server.
+`./start.sh cli doctor` reports URL/Host-override mode and preserves readiness
+errors with a pointer to this recipe; no requests are retried or bypassed.
+
+Pinned source evidence:
+  https://github.com/get-bb/bb/blob/5e1acd765039e874643f34c4d35409e58484e408/docs/configuration.md
+See Precedence, Common Keys, and the custom-DNS/reverse-proxy host restrictions.
+This is BB0.47.1's published gitHead, not an unpinned current-version promise.
+
+3. Configure private Tailscale Serve on the host (commands NOT run by openfactory)
+
+After reviewing the host's existing Serve config and tailnet ACLs:
+  tailscale serve status
+  tailscale serve --bg --https=443 http://127.0.0.1:38889
+  tailscale serve status
+
+Use ONE root upstream to the existing controller frontdoor. Preserve the full
+request path; DO NOT configure a separate /openfactory-intake mount and DO NOT
+strip its prefix at Tailscale. Inside the frontdoor, /openfactory-intake/* alone is
+stripped and passed to authenticated internal /v1; bare /v1/* is NOT public.
+Other paths proxy to configured BB, preserving native WebSocket/SSE streams.
+Inspect existing Serve mounts before rollout: a more-specific path bypass must
+not override this single frontdoor. Do not reset unrelated Serve apps.
+
+The frontdoor strengthens BB attachment content responses at
+/api/v1/projects/{oneID}/attachments/content with enforcing
+Content-Security-Policy: sandbox allow-scripts
+and X-Content-Type-Options: nosniff, including images/errors/304 responses.
+Existing upstream CSP remains enforced. Scripts may run but have an OPAQUE
+origin (never allow-same-origin), so worker-controlled HTML cannot inherit the
+operator approval origin. Other BB responses are not blanket-rewritten.
+Operator session cookies and the operator CSRF header are stripped before BB;
+BB's native cookies and the browser's actual Origin remain intact. No new
+identity/trust headers or bridge keys are introduced.
+
+Do not use tailscale funnel, expose the frontdoor on a LAN/public host, or
+assume Tailscale identity headers grant application approval authority.
+Source for private root Serve setup:
+  https://tailscale.com/docs/reference/tailscale-cli/serve
+This recipe has not deployed or reconfigured the operator's Tailscale service.
+
+Equivalent private proxies MUST terminate trusted HTTPS for the exact origin,
+forward ALL routes INTACT to the single frontdoor upstream, support native BB
+WebSocket upgrades/SSE without buffering, preserve browser Origin and cookie
+Path, and reject public/untrusted ingress. Never split out BB/attachment routes
+around the frontdoor, inject actor/approval/service keys, or enable wildcard
+CORS. Do not log fragments, pairing bodies, cookies, CSRF, assertions or private
+transcripts. The panel clears pairing fragments before any network request.
+
+4. Enroll an operator with explicit project scope
+
+Use a trusted local terminal, not a model prompt or a BB thread:
+  ./start.sh cli operator create owner --label 'OpenFactory owner' --project myapp
+  ./start.sh cli operator status owner
+  ./start.sh cli operator pair owner --output /tmp/owner-pairing.json
+
+The output file is newly created exclusively with mode 0600; existing files and
+symlinks are never overwritten. In a container it is a CONTAINER path. Read it
+in a trusted terminal, e.g. an authorized `./start.sh compose exec -T openfactory
+cat /tmp/owner-pairing.json`, not logs or model context. Delete it after pairing.
+Omit --output to print the one-time URL in CLI JSON on the trusted terminal.
+The URL secret is ONLY in #pairing=... (never a URL query). Default TTL is 10
+minutes and policy may shorten it. Reissue after expiry; no reusable password.
+
+Open the link in the phone browser at the private HTTPS origin and register a
+passkey. Read the FULL credential SHA-256 fingerprint from that phone's
+SUCCESSFUL registration screen, then provide that exact value in trusted CLI:
+  ./start.sh cli operator pairing PAIRING_ID
+  ./start.sh cli operator confirm PAIRING_ID --fingerprint FULL_LOWERCASE_SHA256
+  ./start.sh cli operator devices owner
+`operator pairing` displays only non-secret status/scope/expiry, NEVER the
+pending fingerprint or a confirmation code. Do not obtain the value from CLI
+or another requester. A fingerprint mismatch revokes that pairing: issue a
+NEW pairing and repeat registration; retrying the old pairing cannot activate
+anything.
+
+Confirmation atomically consumes the pairing and activates exactly that pending
+credential. Registration alone is not login. Log in freshly with the passkey.
+Each execution or authority grant then requires a NEW UP+UV passkey ceremony
+bound server-side to the exact reviewed command/revision/policy/evidence.
+The authenticator does not display/attest the contract text; the browser remains
+a trust boundary. OS private keys never enter BB/controller storage.
+
+Revocation and backup recovery (trusted CLI ONLY):
+  ./start.sh cli operator revoke-device CREDENTIAL_ID
+  ./start.sh cli operator revoke owner
+  ./start.sh cli operator auth-generation
+  ./start.sh cli operator restore-auth --confirm invalidate-all-browser-auth
+
+Device/operator revoke invalidates future sessions/challenges/commands, not
+previously approved historical work. Restore rotates auth generation, revokes
+ALL existing credentials, and invalidates browser sessions/challenges/pairings.
+Old passkeys CANNOT log in again after this reset. Operators and approved
+history remain, but fresh trusted CLI pairing/phone registration/confirmation
+are REQUIRED before access. Ordinary process restart does not perform a reset.
+Run restore-auth BEFORE exposing a restored database or admitting restored
+work, then reconcile uncertain external ownership BEFORE retry/resume.
+Arbitrary SQLite/whole-volume rollback is NOT automatically detected; there is
+no external epoch-file guarantee. Never substitute unauthenticated recovery.
+
+5. Inspect/export without granting authority
+
+  ./start.sh cli intake status
+  ./start.sh cli intake status --limit 50 --after LAST_RETURNED_REQUEST_ID
+  ./start.sh cli intake status REQUEST_ID
+  ./start.sh cli intake export REQUEST_ID --revision 1 --output /tmp/draft.md
+List status returns items, limit, has_more, and next_cursor when more requests
+exist. Follow the exact next_cursor as --after; the list is never silently
+truncated. --limit must be 1..intake.history_max. Do not combine list options
+with a detail REQUEST_ID. Omitted --limit uses intake.history_default.
+
+Export is the EXACT immutable source bytes (without added newline or rewriting).
+Its JSON receipt carries source_sha separately from the domain revision.
+Without --output, export writes raw canonical bytes to stdout, not JSON.
+Output files are exclusive mode0600; choose .json for program_json drafts.
+Source edits invalidate review. A submitted request's handoff is not proof that
+work has been delivered. Plans publish unapproved children; Program approval
+never grants architecture, individual experiment, or final product approval.
+
+Trusted CLI Program approvals also bind the current Program revision:
+  ./start.sh cli program approve PROGRAM_ID --revision PROGRAM_REVISION_HASH
+  ./start.sh cli program approve-architecture PROGRAM_ID --revision PROGRAM_REVISION_HASH --artifact ARCHITECTURE_SHA256
+  ./start.sh cli program approve-experiment PROGRAM_ID --revision PROGRAM_REVISION_HASH --contract EXACT_CONTRACT_SHA256
+A stale revision/kind/hash is rejected in the SAME transaction as the grant.
+
+Local isolated development (not phone deployment)
+
+Use intake.external_origin: http://localhost:PORT and intake.rp_id: localhost.
+Forward ALL paths intact to the enabled frontdoor behind the SAME localhost
+origin; separate frontend/API ports are different origins and are rejected. Chrome
+supports secure-context passkeys and Secure cookies on localhost; browser
+support varies. Raw-IP remote HTTP, arbitrary non-HTTPS hostnames, null Origin,
+and TLS warnings/bypass are not a supported private phone setup. Use trusted
+private HTTPS for a real device, with no wildcard origins or disabling UV.

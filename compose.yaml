@@ -1,0 +1,164 @@
+name: openfactory
+
+services:
+  openfactory:
+    build:
+      context: .
+      target: controller
+    image: openfactory-controller:local
+    init: true
+    user: "10001:10001"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_signal: SIGTERM
+    stop_grace_period: 65m
+    pids_limit: 512
+    mem_limit: 4g
+    cpus: 2.0
+    environment:
+      OPENFACTORY_ASTRA_MODEL: ${OPENFACTORY_ASTRA_MODEL:-}
+      OPENFACTORY_FAST_MODEL: ${OPENFACTORY_FAST_MODEL:-}
+      OPENFACTORY_REQUIRE_CHECK_SOCKET: "1"
+      OPENFACTORY_RESEARCH_BROKER_URL: ${OPENFACTORY_RESEARCH_BROKER_URL:-http://openfactory:38888}
+      # Optional HTTP Host only; empty preserves BB URL/DNS/TLS authority.
+      OPENFACTORY_BB_HOST_AUTHORITY: ${OPENFACTORY_BB_HOST_AUTHORITY:-}
+    command: ["--config", "/config/${OPENFACTORY_CONFIG_BASENAME:-openfactory.yaml}", "run", "--dashboard-listen", "0.0.0.0:38887", "--dashboard-allow-non-loopback", "--research-listen", "0.0.0.0:38888", "--research-allow-non-loopback", "--command-listen", "0.0.0.0:38889", "--command-allow-non-loopback"]
+    ports:
+      - "127.0.0.1:38887:38887"
+      # Single private BB/intake frontdoor; no socket until policy opts in.
+      - "127.0.0.1:38889:38889"
+    depends_on:
+      bb:
+        condition: service_healthy
+      checks:
+        condition: service_healthy
+    volumes:
+      - type: volume
+        source: openfactory-state
+        target: /state
+      - type: volume
+        source: discovery-artifacts
+        target: /state/artifacts
+      - type: volume
+        source: check-socket
+        target: /run/openfactory-checks
+      - type: volume
+        source: workspaces
+        target: /workspaces
+      - type: bind
+        source: ${OPENFACTORY_CONFIG_DIR:-./config}
+        target: /config
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=1g,mode=1777
+    networks: [agent-control]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  checks:
+    build:
+      context: .
+      target: controller
+    image: openfactory-controller:local
+    init: true
+    user: "10001:10001"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 30s
+    pids_limit: 512
+    mem_limit: 4g
+    cpus: 2.0
+    command: ["--config", "/config/openfactory.yaml", "executor", "--socket", "/run/openfactory-checks/check.sock", "--root", "/workspaces", "--journal-root", "/executor-state", "--artifacts-root", "/artifacts"]
+    volumes:
+      - workspaces:/workspaces
+      - check-socket:/run/openfactory-checks
+      - experiment-state:/executor-state
+      - discovery-artifacts:/artifacts
+      - type: bind
+        source: ${OPENFACTORY_CONFIG_DIR:-./config}/${OPENFACTORY_CONFIG_BASENAME:-openfactory.yaml}
+        target: /config/openfactory.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=2g,mode=1777
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--unix-socket", "/run/openfactory-checks/check.sock", "http://checker/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [check-isolated]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  bb:
+    build:
+      context: .
+      target: bb
+    image: openfactory-bb:local
+    init: true
+    user: "10001:10001"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_signal: SIGTERM
+    stop_grace_period: 90s
+    pids_limit: 1024
+    mem_limit: 8g
+    cpus: 4.0
+    ports:
+      - "127.0.0.1:38886:38886"
+    environment:
+      OPENFACTORY_VIEW_URL: http://openfactory:38887/api/status
+      # Non-secret opt-in origin only; BB's persisted config has precedence.
+      BB_APP_URL: ${OPENFACTORY_BB_APP_URL:-http://bb:38886}
+    volumes:
+      - type: volume
+        source: bb-home
+        target: /home/bb
+      - type: volume
+        source: workspaces
+        target: /workspaces
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=1g,mode=1777
+    healthcheck:
+      test: ["CMD", "node", "/opt/openfactory/bin/bb-start.mjs", "--healthcheck"]
+      interval: 10s
+      timeout: 5s
+      start_period: 6m
+      retries: 12
+    networks: [agent-control]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  openfactory-state:
+  bb-home:
+  workspaces:
+  check-socket:
+  experiment-state:
+  discovery-artifacts:
+
+# Only the controller joins BB's private API network. Checks have no external
+# route by default; opt into separate dependency-download egress explicitly.
+networks:
+  agent-control:
+    driver: bridge
+  check-isolated:
+    internal: true

@@ -1,0 +1,7 @@
+# Image-owned intake overlay; provider authentication stays in the BB home.
+advisor:
+  enabled: false
+retry:
+  fallbackChains:
+    default: []
+    web: []

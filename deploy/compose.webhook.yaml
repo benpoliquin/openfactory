@@ -1,0 +1,12 @@
+# Controller-only notification HMAC key. Set webhook_secret_file in the
+# operator config to /run/secrets/webhook_secret and supply webhook_url there.
+# .env: COMPOSE_FILE=compose.yaml:deploy/compose.webhook.yaml
+services:
+  openfactory:
+    volumes:
+      - type: bind
+        source: ${WEBHOOK_SECRET_FILE:?Set WEBHOOK_SECRET_FILE to an existing nonempty HMAC key file}
+        target: /run/secrets/webhook_secret
+        read_only: true
+        bind:
+          create_host_path: false

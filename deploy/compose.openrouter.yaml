@@ -1,0 +1,14 @@
+# OpenRouter credits are billed separately by OpenRouter. This secret reaches
+# BB/omp only, never the controller. OAuth login needs no secret-file overlay.
+# .env: COMPOSE_FILE=compose.yaml:deploy/compose.openrouter.yaml
+services:
+  bb:
+    environment:
+      OPENROUTER_API_KEY_FILE: /run/secrets/openrouter_api_key
+    volumes:
+      - type: bind
+        source: ${OPENROUTER_API_KEY_FILE:?Set OPENROUTER_API_KEY_FILE to an existing nonempty key file}
+        target: /run/secrets/openrouter_api_key
+        read_only: true
+        bind:
+          create_host_path: false

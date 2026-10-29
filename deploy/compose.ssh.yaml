@@ -1,0 +1,20 @@
+# Enable only after creating dedicated, readable files and configuring each
+# enrolled project's auth.mode=ssh, ssh_key_file=/run/secrets/git_ssh_key,
+# known_hosts_file=/run/secrets/git_known_hosts. Verify host fingerprints out of
+# band; never disable StrictHostKeyChecking or mount an SSH agent/home directory.
+# .env: COMPOSE_FILE=compose.yaml:deploy/compose.ssh.yaml
+services:
+  openfactory:
+    volumes:
+      - type: bind
+        source: ${GIT_SSH_KEY_FILE:?Set GIT_SSH_KEY_FILE to an existing dedicated private key}
+        target: /run/secrets/git_ssh_key
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${GIT_KNOWN_HOSTS_FILE:?Set GIT_KNOWN_HOSTS_FILE to a verified known_hosts file}
+        target: /run/secrets/git_known_hosts
+        read_only: true
+        bind:
+          create_host_path: false

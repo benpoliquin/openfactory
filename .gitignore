@@ -1,0 +1,23 @@
+# Operator-only configuration, credentials and state.
+.env
+.env.*
+!.env.example
+/config/
+/secrets/
+/state/
+/workspaces/
+/bb-home/
+*.key
+*.pem
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+
+# Local build/editor artifacts.
+/openfactory
+/bin/
+/coverage.out
+node_modules/
+.DS_Store
+*.log

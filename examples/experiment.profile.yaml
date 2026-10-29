@@ -1,0 +1,26 @@
+# Merge into an operator-owned configuration only after reviewing the script,
+# executable path, runtime image and existing ordinary project checks.
+# No profile is enrolled by importing a Program. Program approval is not an
+# architecture or experiment approval. Each frozen contract still needs approval.
+# The executor must actually contain /usr/bin/python3; no fallback is selected.
+# The architecture experiment contract uses id: event-ordering and declares
+# bundle_files: ["experiments/event-ordering/experiment.py"]. Preparation copies
+# the exact reviewed experiment.py seed into that path before controller freeze.
+# A separate stale-writer contract declares
+# bundle_files: ["experiments/stale-writer/experiment.py"] and profile below.
+# Frozen CAS paths retain the namespace; do not guess or strip the prefix.
+# bundle_manifest_sha is computed by the controller, not supplied by this example.
+discovery:
+  experiment_profiles:
+    event-ordering-python:
+      argv: ["/usr/bin/python3", "experiments/event-ordering/experiment.py"]
+      allowed_args: ["arrival", "versioned"]
+      image_identity: ""
+      network: false
+      hardware: []
+    stale-writer-python:
+      argv: ["/usr/bin/python3", "experiments/stale-writer/experiment.py"]
+      allowed_args: ["fenced"]
+      image_identity: ""
+      network: false
+      hardware: []
