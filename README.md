@@ -7,6 +7,9 @@ OpenFactory coordinates AI coding agents across trusted repositories. Work can
 move in parallel, while you control what runs and inspect the evidence behind it.
 It runs locally with Docker Compose and makes no model calls while idle.
 
+Powered by **[omp.sh](https://omp.sh/)**, the coding-agent harness behind
+OpenFactory's coding workers.
+
 ## Parallel work, controlled delivery
 
 Independent features get separate workspaces for building, checks, and review.
